@@ -1,0 +1,24 @@
+{
+  "name": "subtitle-rhythm-deck",
+  "private": true,
+  "version": "1.0.0",
+  "type": "module",
+  "description": "本地运行的字幕节奏校对台：SRT 导入、时间轴拖拽校对、约束回弹、撤销重做、SRT 导出",
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc -b && vite build",
+    "preview": "vite preview --host",
+    "test:smoke": "esbuild scripts/smoke.ts --bundle --platform=node --format=esm --outfile=node_modules/.cache/smoke.mjs && node node_modules/.cache/smoke.mjs"
+  },
+  "dependencies": {
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1"
+  },
+  "devDependencies": {
+    "@types/react": "^18.3.12",
+    "@types/react-dom": "^18.3.1",
+    "@vitejs/plugin-react": "^4.3.4",
+    "typescript": "^5.6.3",
+    "vite": "^5.4.11"
+  }
+}

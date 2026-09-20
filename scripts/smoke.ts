@@ -20,6 +20,19 @@ import {
   loopWrapTarget,
   MIN_LOOP_LENGTH
 } from '../src/lib/abLoop';
+import {
+  checkShadowSupport,
+  classifyMicError,
+  clampToRange,
+  isPastEnd,
+  isUsableRecording,
+  micErrorText,
+  pickMimeType,
+  supportReasonText,
+  syncTarget,
+  COUNTDOWN_SECONDS,
+  SYNC_TOLERANCE
+} from '../src/lib/shadowing';
 
 let fail = 0;
 function assert(cond: boolean, msg: string) {
@@ -279,6 +292,77 @@ assert(rr.snapped && rr.time === 2.0 && rr.valid, '原候选时长不足但吸�
   assert(loopEntryTarget(1, range) === null, '恰在 A 不动');
   assert(loopEntryTarget(4, range) === null, '恰在 B 不动（播放推进由回卷处理）');
   assert(loopEntryTarget(0.5, null) === null, '无区间不校正');
+}
+
+// 17. 单句跟读：倒计时、80ms 纠偏阈值与纯函数
+{
+  assert(COUNTDOWN_SECONDS === 3, '录音前固定倒计时 3 秒');
+  assert(SYNC_TOLERANCE === 0.08, '累计偏差阈值 80ms');
+  // 恰好 80ms 不纠偏（严格大于；用 2.16-2.08 避免浮点尾数）
+  assert(syncTarget(2.16, 2.08) === null, '偏差 80ms 恰好不纠偏');
+  assert(syncTarget(2.0, 1.9) === 2.0, '偏差 100ms -> 以原音时间纠偏');
+  assert(syncTarget(2.0, 2.11) === 2.0, '录音超前 110ms -> 拉回原音时间');
+  assert(syncTarget(Number.NaN, 1) === null, '非有限时间不纠偏');
+  assert(syncTarget(3.5, 3, 0) === 3.5, '阈值 0 时任意差异都纠偏（严格大于 0）');
+}
+
+// 18. 单句跟读：区间相对位置与终点判定
+{
+  // 字幕 [5, 8]：原音绝对时间 5 -> 相对 0，7.9 -> 2.9
+  assert(clampToRange(5, 5, 3) === 0, '绝对时间转相对位置：起点');
+  assert(clampToRange(7.75, 5, 3) === 2.75, '绝对时间转相对位置：区间内');
+  assert(clampToRange(9, 5, 3) === 3, '越过终点夹到 3s');
+  assert(clampToRange(-1, 5, 3) === 0, '小于 0 夹到 0');
+  assert(!isPastEnd(2.99, 3), '未到终点不停止');
+  assert(isPastEnd(3, 3), '恰好到字幕终点自动停止');
+  assert(isPastEnd(3.5, 3), '越过终点停止');
+  assert(!isUsableRecording(0.04), '40ms 录音不构成有效跟读');
+  assert(isUsableRecording(0.05), '50ms 录音有效');
+}
+
+// 19. 单句跟读：能力探测（用最小桩对象，不依赖真实浏览器）
+{
+  const mrCtor = Object.assign(() => undefined, { isTypeSupported: () => true });
+  // 非安全上下文 -> secure-context
+  let s = checkShadowSupport({ mediaDevices: { getUserMedia() {} } } as unknown as Navigator, {
+    isSecureContext: false,
+    MediaRecorder: mrCtor
+  } as unknown as Window);
+  assert(!s.ok && s.reason === 'secure-context', '非安全上下文不可用');
+  // 缺 mediaDevices
+  s = checkShadowSupport({} as Navigator, { isSecureContext: true, MediaRecorder: mrCtor } as unknown as Window);
+  assert(!s.ok && s.reason === 'getUserMedia', '不支持 getUserMedia');
+  // 缺 MediaRecorder
+  s = checkShadowSupport(
+    { mediaDevices: { getUserMedia() {} } } as unknown as Navigator,
+    { isSecureContext: true } as unknown as Window
+  );
+  assert(!s.ok && s.reason === 'mediaRecorder', '不支持 MediaRecorder');
+  // 齐全
+  s = checkShadowSupport(
+    { mediaDevices: { getUserMedia() {} } } as unknown as Navigator,
+    { isSecureContext: true, MediaRecorder: mrCtor } as unknown as Window
+  );
+  assert(s.ok && s.reason === null, '能力齐全可录制');
+  // 文案可恢复
+  assert(supportReasonText('secure-context').includes('HTTPS'), '安全上下文提示含 HTTPS');
+  // MIME 选择
+  assert(pickMimeType() === '', '无 MediaRecorder 时返回默认容器（空串）');
+  assert(pickMimeType(mrCtor).startsWith('audio/'), '选出浏览器声明支持的 MIME');
+  const none = { isTypeSupported: () => false };
+  assert(pickMimeType(none) === '', '全部不支持时回退默认容器');
+}
+
+// 20. 单句跟读：麦克风错误分类与可恢复文案
+{
+  const denied = new DOMException('blocked', 'NotAllowedError');
+  assert(classifyMicError(denied) === 'denied', 'NotAllowedError -> 权限拒绝');
+  assert(classifyMicError(new DOMException('x', 'SecurityError')) === 'denied', 'SecurityError -> 权限拒绝');
+  assert(classifyMicError(new DOMException('x', 'NotFoundError')) === 'unavailable', 'NotFoundError -> 无设备');
+  assert(classifyMicError(new DOMException('x', 'NotReadableError')) === 'busy', 'NotReadableError -> 被占用');
+  assert(classifyMicError(new TypeError('boom')) === 'unknown', '未知错误分类');
+  assert(micErrorText('denied').includes('允许麦克风'), '权限拒绝给出可恢复指引');
+  assert(micErrorText('busy').includes('占用'), '设备占用提示');
 }
 
 process.exit(fail ? 1 : 0);

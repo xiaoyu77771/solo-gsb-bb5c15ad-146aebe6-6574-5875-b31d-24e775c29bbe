@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import Toolbar from './components/Toolbar';
 import Timeline from './components/Timeline';
 import CueList from './components/CueList';
+import ShadowPanel from './components/ShadowPanel';
 import type { Constraints, Cue, SilenceStatus } from './types';
 import { formatClock, parseSrt, serializeSrt } from './lib/srt';
 import {
@@ -65,6 +66,12 @@ export default function App() {
   const [loopEnabled, setLoopEnabled] = useState(false);
   const [loopMargins, setLoopMargins] = useState<LoopMargins>(DEFAULT_LOOP_MARGINS);
 
+  // 单句跟读：倒计时 + 录音期间临时暂停 A-B 回卷，结束后恢复原开关状态
+  const [shadowBusy, setShadowBusy] = useState(false);
+  const shadowBusyRef = useRef(false);
+  // 供 ShadowPanel 在音频换源后重挂原音事件（值为 Object URL，变化即新音频）
+  const [audioUrl, setAudioUrl] = useState<string | null>(null);
+
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const audioUrlRef = useRef<string | null>(null);
   const toastId = useRef(0);
@@ -100,9 +107,10 @@ export default function App() {
       el.addEventListener('pause', () => setIsPlaying(false));
       el.addEventListener('ended', () => {
         // B 点被裁剪到音频结尾时，'ended' 先于「越过 B」发生：循环仍激活则回到 A 继续；
-        // 读取的是最新循环计划，导入新音频 / 关闭循环后计划已失效，不会拉回播放头
+        // 读取的是最新循环计划，导入新音频 / 关闭循环后计划已失效，不会拉回播放头；
+        // 跟读录制期间（计划被置为 inactive）同样不回卷
         const plan = loopPlanRef.current;
-        if (plan.active && plan.range) {
+        if (plan.active && plan.range && !shadowBusyRef.current) {
           el.currentTime = plan.range.a;
           setCurrentTime(plan.range.a);
           void el.play().catch(() => setIsPlaying(false));
@@ -155,6 +163,7 @@ export default function App() {
       if (audioUrlRef.current) URL.revokeObjectURL(audioUrlRef.current);
       const url = URL.createObjectURL(file);
       audioUrlRef.current = url;
+      setAudioUrl(url);
       el.src = url;
       el.load();
       setAudioName(file.name);
@@ -214,7 +223,8 @@ export default function App() {
     [selectedCue, loopMargins, duration]
   );
   const loopDisabled = loopDisableReason(hasAudio, selectedCue, loopRange);
-  const loopActive = loopEnabled && loopDisabled === null && loopRange !== null;
+  // 跟读录制期间临时挂起 A-B 回卷：loopActive 置 false，开关状态本身不变，结束自动恢复
+  const loopActive = loopEnabled && loopDisabled === null && loopRange !== null && !shadowBusy;
 
   // 渲染期同步最新循环计划，供音频事件 / rAF 回调读取（写入幂等，StrictMode 安全）
   loopPlanRef.current = { active: loopActive, range: loopActive ? loopRange : null };
@@ -267,6 +277,14 @@ export default function App() {
     setLoopEnabled(on);
   }, []);
 
+  const handleShadowBusyChange = useCallback((busy: boolean) => {
+    shadowBusyRef.current = busy;
+    // 进入录制：立刻作废旧循环计划（与「暂停/导入/关闭」同一路径），已排队回调落空；
+    // 结束：loopActive 随之恢复 true，渲染期重新写入计划，A-B 回卷按原开关状态续用
+    if (busy) loopPlanRef.current = { active: false, range: null };
+    setShadowBusy(busy);
+  }, []);
+
   /* ---------------- SRT ---------------- */
 
   const handleImportSrt = useCallback(
@@ -313,7 +331,8 @@ export default function App() {
         redo();
       } else if (e.key === ' ') {
         e.preventDefault();
-        togglePlay();
+        // 跟读倒计时 / 录音期间不走带，避免打断「起点→终点」的原音播放
+        if (!shadowBusyRef.current) togglePlay();
       }
     };
     window.addEventListener('keydown', onKey);
@@ -351,10 +370,12 @@ export default function App() {
       parts.push(`A-B 循环 ${formatClock(loopRange.a)} → ${formatClock(loopRange.b)}`);
     } else if (loopEnabled && loopDisabled) {
       parts.push(`循环待机：${loopDisableText(loopDisabled)}`);
+    } else if (loopEnabled && shadowBusy) {
+      parts.push('跟读录制中：A-B 回卷已暂停，结束自动恢复');
     }
     if (cues.length > 0) parts.push(`已记录 ${history.past.length} 次调整`);
     return parts.join(' · ');
-  }, [cues.length, history.past.length, silenceStatus, silenceSegments.length, snapEnabled, loopActive, loopRange, loopEnabled, loopDisabled]);
+  }, [cues.length, history.past.length, silenceStatus, silenceSegments.length, snapEnabled, loopActive, loopRange, loopEnabled, loopDisabled, shadowBusy]);
 
   return (
     <div className="app">
@@ -416,6 +437,14 @@ export default function App() {
             onSeek={seekAndPlay}
             onCommit={commit}
             onNotice={(text) => pushToast('warn', text)}
+          />
+          <ShadowPanel
+            cue={selectedCue}
+            audioUrl={audioUrl}
+            duration={duration}
+            audioElRef={audioRef}
+            onBusyChange={handleShadowBusyChange}
+            onNotify={(kind, text) => pushToast(kind, text)}
           />
         </section>
         <CueList

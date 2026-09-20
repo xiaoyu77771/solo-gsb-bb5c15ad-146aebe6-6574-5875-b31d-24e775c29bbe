@@ -666,6 +666,181 @@ body {
   border-radius: 4px;
 }
 
+/* ---------------- 单句跟读对比 ---------------- */
+
+.shadow-panel {
+  flex: 0 0 auto;
+  background: var(--bg-panel);
+  border-top: 1px solid var(--line);
+  padding: 8px 16px 10px;
+}
+
+.shadow-head {
+  display: flex;
+  align-items: baseline;
+  gap: 12px;
+  font-size: 12px;
+  color: var(--text-dim);
+  margin-bottom: 6px;
+  flex-wrap: wrap;
+}
+
+.shadow-title {
+  font-weight: 700;
+  font-size: 13px;
+  color: var(--text);
+  white-space: nowrap;
+}
+
+.shadow-cue {
+  color: #9ec1ff;
+  font-variant-numeric: tabular-nums;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  max-width: 460px;
+}
+
+.shadow-cue.dim {
+  color: var(--text-dim);
+}
+
+.shadow-state {
+  margin-left: auto;
+  font-size: 12px;
+  color: var(--warn);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.shadow-state.live {
+  color: var(--danger);
+  animation: shadow-pulse 1.2s ease-in-out infinite;
+}
+
+@keyframes shadow-pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.55; }
+}
+
+.shadow-body {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.shadow-controls {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.btn.danger {
+  border-color: var(--danger);
+  color: #ffd7db;
+}
+
+.btn.danger:hover:not(:disabled) {
+  background: #4a1d26;
+}
+
+.countdown-big {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  border: 2px solid var(--warn);
+  color: var(--warn);
+  font-size: 22px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  animation: shadow-pulse 1s ease-in-out infinite;
+}
+
+.shadow-warn {
+  font-size: 12px;
+  color: var(--warn);
+  max-width: 520px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.shadow-warn.recoverable {
+  color: #ffb3bb;
+}
+
+.shadow-busy-note {
+  font-size: 11px;
+  color: var(--text-dim);
+}
+
+.shadow-tracks {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding-top: 2px;
+}
+
+.track-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 12px;
+}
+
+.track-name {
+  width: 64px;
+  flex: 0 0 64px;
+  font-weight: 600;
+}
+
+.track-row.orig .track-name {
+  color: #9ec1ff;
+}
+
+.track-row.rec .track-name {
+  color: #8fe3bb;
+}
+
+.btn.mini {
+  padding: 2px 6px;
+  font-size: 13px;
+  min-width: 32px;
+}
+
+.btn.active-muted {
+  border-color: var(--warn);
+}
+
+.track-volume {
+  width: 90px;
+  flex: 0 0 90px;
+  accent-color: var(--accent);
+}
+
+.track-scrub {
+  flex: 1 1 auto;
+  accent-color: #3fd08f;
+  cursor: pointer;
+}
+
+.track-time {
+  flex: 0 0 auto;
+  min-width: 108px;
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+  color: var(--text);
+}
+
+.shadow-sync-hint {
+  font-size: 11px;
+  color: var(--text-dim);
+}
+
 /* ---------------- 字幕列表 ---------------- */
 
 .cue-list {

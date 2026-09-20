@@ -20,6 +20,15 @@ import {
   loopWrapTarget,
   MIN_LOOP_LENGTH
 } from '../src/lib/abLoop';
+import {
+  SHADOW_DRIFT_LIMIT,
+  clampRelative,
+  describeGetUserMediaError,
+  hasRecordingSupport,
+  needsDriftCorrection,
+  pickRecorderMimeType,
+  trackDrift
+} from '../src/lib/shadow';
 
 let fail = 0;
 function assert(cond: boolean, msg: string) {
@@ -279,6 +288,58 @@ assert(rr.snapped && rr.time === 2.0 && rr.valid, '原候选时长不足但吸�
   assert(loopEntryTarget(1, range) === null, '恰在 A 不动');
   assert(loopEntryTarget(4, range) === null, '恰在 B 不动（播放推进由回卷处理）');
   assert(loopEntryTarget(0.5, null) === null, '无区间不校正');
+}
+
+// 17. 单句跟读：能力检测、时钟偏差与纠偏阈值
+{
+  assert(!hasRecordingSupport(undefined, undefined), '无 mediaDevices / MediaRecorder -> 不支持');
+  assert(
+    !hasRecordingSupport({ getUserMedia: 1 }, function MediaRecorder() {}),
+    'getUserMedia 非函数 -> 不支持'
+  );
+  assert(
+    hasRecordingSupport({ getUserMedia: () => undefined }, function MediaRecorder() {}),
+    '两者皆为函数 -> 支持录音'
+  );
+  assert(SHADOW_DRIFT_LIMIT === 0.08, '偏差阈值 80ms');
+
+  assert(Math.abs(trackDrift(1, 0.9) - 0.1) < 1e-9, '录音滞后 100ms -> 偏差 +0.1');
+  assert(Math.abs(trackDrift(0.9, 1) - -0.1) < 1e-9, '录音超前 100ms -> 偏差 -0.1');
+  assert(!needsDriftCorrection(0.08), '恰好 80ms 不纠偏（严格大于）');
+  assert(needsDriftCorrection(0.081), '超过 80ms 触发纠偏');
+  assert(needsDriftCorrection(-0.09), '超前超过 80ms 同样纠偏');
+  assert(!needsDriftCorrection(0.02), '20ms 不干预');
+
+  assert(clampRelative(-1, 2) === 0, '相对时间负值夹到 0');
+  assert(clampRelative(3, 2) === 2, '相对时间超出时长夹到时长');
+  assert(clampRelative(1.5, 2) === 1.5, '区间内保持');
+  assert(clampRelative(NaN, 2) === 0, 'NaN 按 0 处理');
+  assert(clampRelative(1, NaN) === 0, '时长非法按 0 处理');
+}
+
+// 18. 单句跟读：MIME 选择与权限错误归类
+{
+  const supported = new Set(['audio/webm']);
+  const isOk = (m: string) => supported.has(m);
+  assert(pickRecorderMimeType(isOk) === 'audio/webm', 'webm 受支持时选中');
+  assert(pickRecorderMimeType(() => false) === '', '全部不支持 -> 空串（用默认容器）');
+  const safari = new Set(['audio/mp4']);
+  assert(pickRecorderMimeType((m) => safari.has(m)) === 'audio/mp4', 'Safari 退回 mp4');
+  // 抛异常的 isTypeSupported 不应击穿选择流程
+  assert(
+    pickRecorderMimeType((m) => {
+      if (m === 'audio/webm') throw new Error('boom');
+      return false;
+    }) === '',
+    'isTypeSupported 抛错时安全降级为空串'
+  );
+
+  const denied = describeGetUserMediaError(new DOMException('denied', 'NotAllowedError'));
+  assert(denied.kind === 'permission' && denied.recoverable, '权限拒绝 -> 可恢复提示');
+  const noDev = describeGetUserMediaError(new DOMException('x', 'NotFoundError'));
+  assert(noDev.kind === 'device' && noDev.recoverable, '无设备 -> 可恢复提示');
+  const unknown = describeGetUserMediaError(new Error('weird'));
+  assert(unknown.kind === 'unknown' && unknown.text.includes('weird'), '未知错误保留原文案');
 }
 
 process.exit(fail ? 1 : 0);

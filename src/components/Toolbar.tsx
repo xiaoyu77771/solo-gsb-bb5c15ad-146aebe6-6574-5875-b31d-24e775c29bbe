@@ -21,6 +21,8 @@ interface ToolbarProps {
   loopEnabled: boolean;
   /** 当前生效的循环区间；未开启或不可用时为 null */
   loopRange: LoopRange | null;
+  /** 跟读录音期间临时暂停回卷（开关保持开启，录音结束自动恢复） */
+  loopSuspended: boolean;
   /** 不可用原因文案；null 表示可开启 */
   loopDisabledReason: string | null;
   loopMargins: LoopMargins;
@@ -90,14 +92,16 @@ export default function Toolbar(p: ToolbarProps) {
         <label
           className="switch"
           title={
-            p.loopDisabledReason ??
-            '以选中字幕起止 ± 前后余量形成循环区间，播放越过 B 点自动回到 A 点'
+            p.loopSuspended
+              ? '跟读录音中，A-B 回卷已暂时暂停，录音结束后自动恢复'
+              : p.loopDisabledReason ??
+                '以选中字幕起止 ± 前后余量形成循环区间，播放越过 B 点自动回到 A 点'
           }
         >
           <input
             type="checkbox"
             checked={p.loopEnabled}
-            disabled={!p.loopEnabled && p.loopDisabledReason !== null}
+            disabled={(!p.loopEnabled && p.loopDisabledReason !== null) || p.loopSuspended}
             onChange={(e) => p.onLoopEnabledChange(e.target.checked)}
           />
           A-B 循环
@@ -130,7 +134,9 @@ export default function Toolbar(p: ToolbarProps) {
           />
           s
         </label>
-        {p.loopDisabledReason ? (
+        {p.loopSuspended ? (
+          <span className="loop-state suspended">跟读录音中 · 已暂停回卷</span>
+        ) : p.loopDisabledReason ? (
           <span className="loop-state failed">{p.loopDisabledReason}</span>
         ) : p.loopRange ? (
           <span className="loop-state live">

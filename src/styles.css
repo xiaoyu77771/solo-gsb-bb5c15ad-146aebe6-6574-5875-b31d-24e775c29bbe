@@ -808,3 +808,253 @@ body {
   from { opacity: 0; transform: translateY(8px); }
   to { opacity: 1; transform: translateY(0); }
 }
+
+/* ---------------- 单句跟读对比 ---------------- */
+
+.shadow-dock {
+  flex: 0 0 auto;
+  background: var(--bg-panel);
+  border-top: 1px solid var(--line);
+  font-size: 13px;
+}
+
+.shadow-dock.countdown,
+.shadow-dock.recording {
+  border-top-color: var(--danger);
+  box-shadow: inset 0 1px 0 rgba(255, 93, 108, 0.35);
+}
+
+.shadow-dock.recorded {
+  border-top-color: #3fd08f;
+  box-shadow: inset 0 1px 0 rgba(63, 208, 143, 0.3);
+}
+
+.shadow-head {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 7px 16px;
+  cursor: pointer;
+  user-select: none;
+}
+
+.shadow-title {
+  font-weight: 600;
+  font-size: 13px;
+  white-space: nowrap;
+}
+
+.shadow-status {
+  font-size: 12px;
+  color: var(--text-dim);
+  font-variant-numeric: tabular-nums;
+}
+
+.shadow-status.phase-countdown,
+.shadow-status.phase-recording {
+  color: var(--danger);
+  font-weight: 600;
+}
+
+.shadow-status.phase-recorded {
+  color: var(--cue-playing-border);
+}
+
+.shadow-collapse {
+  margin-left: auto;
+  color: var(--text-dim);
+  font-size: 10px;
+}
+
+.drift-badge {
+  font-size: 11px;
+  padding: 1px 8px;
+  border-radius: 10px;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.drift-badge.ok {
+  color: var(--cue-playing-border);
+  background: rgba(31, 122, 82, 0.25);
+}
+
+.drift-badge.off {
+  color: var(--warn);
+  background: rgba(245, 181, 68, 0.15);
+}
+
+.shadow-body {
+  padding: 0 16px 12px;
+}
+
+.shadow-idle,
+.shadow-busy,
+.shadow-compare {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.shadow-cue-info {
+  display: flex;
+  align-items: baseline;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.shadow-cue-time {
+  color: #9ec1ff;
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.shadow-cue-text {
+  color: var(--text);
+  font-size: 13px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  max-width: 640px;
+}
+
+.shadow-hint {
+  color: var(--text-dim);
+  font-size: 12px;
+}
+
+.shadow-actions {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.shadow-tip {
+  color: var(--text-dim);
+  font-size: 11px;
+}
+
+.btn.mini {
+  padding: 3px 10px;
+  font-size: 12px;
+}
+
+.btn.danger {
+  border-color: rgba(255, 93, 108, 0.6);
+  color: #ffd7db;
+}
+
+.btn.danger:hover:not(:disabled) {
+  background: #4a1c24;
+  border-color: var(--danger);
+}
+
+.countdown-big {
+  font-size: 40px;
+  font-weight: 700;
+  line-height: 1.1;
+  color: var(--danger);
+  font-variant-numeric: tabular-nums;
+}
+
+.meter {
+  height: 10px;
+  border-radius: 5px;
+  background: #0e1424;
+  border: 1px solid var(--line);
+  overflow: hidden;
+}
+
+.meter-fill {
+  height: 100%;
+  background: linear-gradient(90deg, #3fd08f, var(--warn) 70%, var(--danger));
+  transition: width 0.06s linear;
+}
+
+.shadow-error {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 7px 12px;
+  margin-bottom: 8px;
+  border-radius: 8px;
+  font-size: 12px;
+  background: #38151c;
+  border: 1px solid var(--danger);
+  color: #ffd7db;
+}
+
+.shadow-error.unsupported {
+  background: #2a2414;
+  border-color: var(--warn);
+  color: #ffe6bd;
+}
+
+.shadow-error-actions {
+  display: flex;
+  gap: 6px;
+  flex: 0 0 auto;
+}
+
+.track-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 4px 0;
+}
+
+.track-name {
+  width: 38px;
+  flex: 0 0 38px;
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.track-orig .track-name {
+  color: #9ec1ff;
+}
+
+.track-rec .track-name {
+  color: #9df0c8;
+}
+
+.track-seek {
+  flex: 1;
+  min-width: 120px;
+  accent-color: var(--accent);
+}
+
+.track-orig .track-seek {
+  accent-color: #5b95ff;
+}
+
+.track-rec .track-seek {
+  accent-color: #3fd08f;
+}
+
+.track-clock {
+  font-size: 11px;
+  color: var(--text-dim);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+  min-width: 104px;
+  text-align: right;
+}
+
+.track-volume {
+  width: 90px;
+  flex: 0 0 90px;
+  accent-color: var(--accent);
+}
+
+.btn.mini.muted-on {
+  border-color: var(--warn);
+  opacity: 1;
+}
+
+.loop-state.suspended {
+  color: var(--danger);
+}

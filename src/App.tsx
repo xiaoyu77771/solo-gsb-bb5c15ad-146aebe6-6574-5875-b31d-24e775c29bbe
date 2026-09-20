@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import Toolbar from './components/Toolbar';
 import Timeline from './components/Timeline';
 import CueList from './components/CueList';
+import ShadowPanel from './components/ShadowPanel';
 import type { Constraints, Cue, SilenceStatus } from './types';
 import { formatClock, parseSrt, serializeSrt } from './lib/srt';
 import {
@@ -52,6 +53,10 @@ export default function App() {
   const [isPlaying, setIsPlaying] = useState(false);
   const [srtName, setSrtName] = useState<string | null>(null);
   const [audioName, setAudioName] = useState<string | null>(null);
+  // 当前音频的 Object URL 镜像状态：供跟读面板创建独立播放轨（权威值仍在 audioUrlRef）
+  const [audioObjectUrl, setAudioObjectUrl] = useState<string | null>(null);
+  // 单句跟读忙碌态（倒计时 + 录音）：期间暂停 A-B 回卷，结束自动恢复原开关状态
+  const [shadowBusy, setShadowBusy] = useState(false);
   const [toasts, setToasts] = useState<Toast[]>([]);
 
   // 静音分析：吸附开关、可调阈值（dB）、分析状态与窗口能量
@@ -76,6 +81,8 @@ export default function App() {
     active: false,
     range: null
   });
+  // 跟读录音忙碌态的 ref 镜像，供音频事件 / 键盘回调读取最新值
+  const shadowBusyRef = useRef(false);
 
   const cues = history.present;
 
@@ -123,6 +130,19 @@ export default function App() {
     };
   }, []);
 
+  /**
+   * 跟读录音忙碌态变化：录音期间暂停主导航播放并抑制 A-B 回卷；
+   * 用户的循环开关状态本身不改动，忙碌结束后自动按原开关恢复。
+   */
+  const handleShadowBusyChange = useCallback((busy: boolean) => {
+    shadowBusyRef.current = busy;
+    setShadowBusy(busy);
+    if (busy) {
+      loopPlanRef.current = { active: false, range: null };
+      audioRef.current?.pause();
+    }
+  }, []);
+
   /** 用 Web Audio API 解码并分析窗口能量；token 保证旧音频结果不会回写 */
   const runSilenceAnalysis = useCallback(
     (file: File) => {
@@ -155,6 +175,7 @@ export default function App() {
       if (audioUrlRef.current) URL.revokeObjectURL(audioUrlRef.current);
       const url = URL.createObjectURL(file);
       audioUrlRef.current = url;
+      setAudioObjectUrl(url);
       el.src = url;
       el.load();
       setAudioName(file.name);
@@ -177,6 +198,10 @@ export default function App() {
   const seek = useCallback(
     (t: number, play = false) => {
       const el = audioRef.current;
+      if (shadowBusyRef.current && play) {
+        // 跟读录音中禁止主导航自动播放，避免与跟读原音轨叠加
+        return;
+      }
       if (!el || !audioUrlRef.current) {
         // 未导入音频时仍允许播放头移动，便于纯字幕检查
         setCurrentTime(Math.max(0, t));
@@ -196,6 +221,11 @@ export default function App() {
 
   const togglePlay = useCallback(() => {
     const el = audioRef.current;
+    if (shadowBusyRef.current) {
+      // 跟读倒计时 / 录音中主导航让位于录音轨，避免与原音轨叠加播放
+      pushToast('warn', '跟读录音进行中，请使用跟读面板控制');
+      return;
+    }
     if (!el || !audioUrlRef.current) {
       pushToast('warn', '请先导入浏览器可播放的音频文件');
       return;
@@ -214,7 +244,9 @@ export default function App() {
     [selectedCue, loopMargins, duration]
   );
   const loopDisabled = loopDisableReason(hasAudio, selectedCue, loopRange);
-  const loopActive = loopEnabled && loopDisabled === null && loopRange !== null;
+  // 跟读录音（倒计时 + 录音）期间暂停回卷：开关状态保留，结束自动恢复
+  const loopActive = loopEnabled && loopDisabled === null && loopRange !== null && !shadowBusy;
+  const loopSuspended = loopEnabled && loopDisabled === null && shadowBusy;
 
   // 渲染期同步最新循环计划，供音频事件 / rAF 回调读取（写入幂等，StrictMode 安全）
   loopPlanRef.current = { active: loopActive, range: loopActive ? loopRange : null };
@@ -349,12 +381,27 @@ export default function App() {
     } else if (silenceStatus === 'error') parts.push('静音分析失败');
     if (loopActive && loopRange) {
       parts.push(`A-B 循环 ${formatClock(loopRange.a)} → ${formatClock(loopRange.b)}`);
+    } else if (loopSuspended) {
+      parts.push('跟读录音中 · A-B 回卷已暂时暂停');
     } else if (loopEnabled && loopDisabled) {
       parts.push(`循环待机：${loopDisableText(loopDisabled)}`);
     }
+    if (shadowBusy) parts.push('正在跟读录音');
     if (cues.length > 0) parts.push(`已记录 ${history.past.length} 次调整`);
     return parts.join(' · ');
-  }, [cues.length, history.past.length, silenceStatus, silenceSegments.length, snapEnabled, loopActive, loopRange, loopEnabled, loopDisabled]);
+  }, [
+    cues.length,
+    history.past.length,
+    silenceStatus,
+    silenceSegments.length,
+    snapEnabled,
+    loopActive,
+    loopSuspended,
+    loopRange,
+    loopEnabled,
+    loopDisabled,
+    shadowBusy
+  ]);
 
   return (
     <div className="app">
@@ -387,6 +434,7 @@ export default function App() {
         silenceError={silenceError}
         loopEnabled={loopEnabled}
         loopRange={loopActive ? loopRange : null}
+        loopSuspended={loopSuspended}
         loopDisabledReason={loopDisabled ? loopDisableText(loopDisabled) : null}
         loopMargins={loopMargins}
         onLoopEnabledChange={handleLoopEnabledChange}
@@ -416,6 +464,13 @@ export default function App() {
             onSeek={seekAndPlay}
             onCommit={commit}
             onNotice={(text) => pushToast('warn', text)}
+          />
+          <ShadowPanel
+            cue={selectedCue}
+            audioUrl={audioObjectUrl}
+            duration={duration}
+            onNotice={(text) => pushToast('warn', text)}
+            onBusyChange={handleShadowBusyChange}
           />
         </section>
         <CueList
